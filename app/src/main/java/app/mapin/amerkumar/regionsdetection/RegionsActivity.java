@@ -74,13 +74,16 @@ public class RegionsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_regions);
 
+        // prevent the screen going to sleep while app is on foreground
+        findViewById(android.R.id.content).setKeepScreenOn(true);
+
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         mGeofencingClient = LocationServices.getGeofencingClient(this);
         requestLocationPermissions();
         requestGPSPermissions();
         getLocationUpdates();
-        addGeofences();
-        geoFencingInit();
+//        addGeofences();
+//        geoFencingInit();
 
         mLatitudeTextView = (TextView) findViewById(R.id.latitude);
         mLongitudeTextView = (TextView) findViewById(R.id.longitude);

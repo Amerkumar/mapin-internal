@@ -72,6 +72,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
             } else if ( geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
                 sendNotification("Transition Exit", "Exit in geofence -- here" +
                         "floor should be removed.");
+                Log.d(TAG, "GIK Incubator -- Exit");
 
             }
             else {
@@ -113,32 +114,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
         mNotifyManager.notify(NOTIFICATION_ID, notifyBuilder.build());
 
     }
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ID, "Masoct Notification",
-//                    NotificationManager.IMPORTANCE_DEFAULT);
-//            notificationChannel.enableLights(true);
-//            notificationChannel.setLightColor(Color.RED);
-//            notificationChannel.enableVibration(true);
-//            notificationChannel.setDescription("Notification from Mascot");
-//            mNotificationManager.createNotificationChannel(notificationChannel);
-//        }
-//
-//        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, CHANNEL_ID)
-//                                                .setSmallIcon(R.drawable.android_icon)
-//                                                .setContentTitle(title)
-//                                                .setContentText(content);
-//
-//        // Create an explicit intent for an Activity in your app
-//        Intent contentIntent = new Intent(this, RegionsActivity.class);
-//        PendingIntent pendingContentIntent = PendingIntent.getService(this, 0,
-//                contentIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-//
-//// Set the intent that will fire when the user taps the notification
-//        mBuilder.setContentIntent(pendingContentIntent);
-//        mBuilder.setPriority(NotificationCompat.PRIORITY_HIGH)
-//                .setDefaults(NotificationCompat.PRIORITY_HIGH);
-//        mNotificationManager.notify(NOTIFICATION_ID, mBuilder.build());
-//    }
+
 
     private String getGeofenceTransitionDetails(GeofenceTransitionsIntentService geofenceTransitionsIntentService,
                                                 int geofenceTransition, List<Geofence> triggeringGeofences) {
