@@ -1,14 +1,12 @@
 package app.mapin.amerkumar.regionsdetection;
 
 import android.Manifest;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
@@ -72,7 +70,7 @@ public class RegionsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_regions);
+        setContentView(R.layout.activity_regions_backup);
 
         // prevent the screen going to sleep while app is on foreground
         findViewById(android.R.id.content).setKeepScreenOn(true);
@@ -84,6 +82,7 @@ public class RegionsActivity extends AppCompatActivity {
         getLocationUpdates();
 //        addGeofences();
 //        geoFencingInit();
+
 
         mLatitudeTextView = (TextView) findViewById(R.id.latitude);
         mLongitudeTextView = (TextView) findViewById(R.id.longitude);
