@@ -19,10 +19,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".GeofenceTransitionsIntentService"
-            android:exported="false"></service>
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyCbSZhslPDozn5S2ShBHHqolm8AB41QEFQ"/>
+        <meta-data
+            android:name="com.indooratlas.android.sdk.API_KEY"
+            android:value="eb1dec10-794a-49eb-bda5-7c51ac1d3165"/>
+        <meta-data
+            android:name="com.indooratlas.android.sdk.API_SECRET"
+            android:value="4oZ6ApMwG0UPozc7E4CKaxSYmtZoIQ+rZ9wMv1iUKAG3+YwMWx4n6yxG7KSFoRFG6M1pOzezq8xE0s/rdSpM/Lqd0RN/jSnkKi9dI/Sg/J3jFrRedlHl1CcZqpa3sg=="/>
     </application>
 
 </manifest>

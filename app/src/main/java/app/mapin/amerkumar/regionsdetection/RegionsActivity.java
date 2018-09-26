@@ -7,14 +7,19 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
+import android.os.Looper;
 import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
 
 import com.google.android.gms.common.api.ApiException;
@@ -30,20 +35,39 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResponse;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.GroundOverlay;
+import com.google.android.gms.maps.model.GroundOverlayOptions;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.indooratlas.android.sdk.IARegion;
+import com.indooratlas.android.sdk.resources.IAFloorPlan;
+import com.indooratlas.android.sdk.resources.IALatLng;
+import com.indooratlas.android.sdk.resources.IAResourceManager;
+import com.indooratlas.android.sdk.resources.IAResult;
+import com.indooratlas.android.sdk.resources.IAResultCallback;
+import com.indooratlas.android.sdk.resources.IATask;
+import com.squareup.picasso.Picasso;
+import com.squareup.picasso.RequestCreator;
+import com.squareup.picasso.Target;
 
 import java.util.LinkedList;
 import java.util.List;
 
-public class RegionsActivity extends AppCompatActivity {
+public class RegionsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     private static final String TAG = "ap.mapin.RegionActivity";
     private static final int REQUEST_CHECK_SETTINGS = 0;
-    private static final String GEOFENCE_REQ_ID = "GIK Incubator";
-    private static final String PRIMARY_CHANNEL_ID = "Mascot Notification";
+    private static final int MAX_DIMENSION = 2048;
 
     private FusedLocationProviderClient mFusedLocationProviderClient;
 
@@ -53,106 +77,37 @@ public class RegionsActivity extends AppCompatActivity {
     };
     private static final int LOCATION_PERMISSIONS_REQUEST = 0;
 
-
-    private TextView mLatitudeTextView;
-    private TextView mLongitudeTextView;
-    private TextView mAccuracyTextView;
-    private TextView mAltitudeTextView;
     private LocationCallback mLocationCallback;
-    private GeofencingClient mGeofencingClient;
-    private List<Geofence> mGeofenceList = new LinkedList<>();
-    private double INCUBATOR_LATITUDE = 34.071704;
-    private double INCUBATOR_LONGITUDE = 72.645717;
-    private float INCUBATOR_GEOFENCE_RADIUS_IN_METERS = 30;
-    private PendingIntent mGeofencePendingIntent;
-    private NotificationManager mNotifyManager;
+    private GoogleMap mMap;
+    private GroundOverlay mGroundOverlay;
+    private Target mLoadTarget;
+    private IARegion mOverlayFloorPlan;
+    private IAResourceManager mResourceManager;
+    private IATask<IAFloorPlan> mFetchFloorPlanTask;
+    private String newId = "bf5292d6-d12a-44a7-b9e3-ee6de6f10ffc";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_regions_backup);
+        setContentView(R.layout.fragment_maps);
 
         // prevent the screen going to sleep while app is on foreground
         findViewById(android.R.id.content).setKeepScreenOn(true);
 
-        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-        mGeofencingClient = LocationServices.getGeofencingClient(this);
-        requestLocationPermissions();
-        requestGPSPermissions();
-        getLocationUpdates();
-//        addGeofences();
-//        geoFencingInit();
+//        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
-
-        mLatitudeTextView = (TextView) findViewById(R.id.latitude);
-        mLongitudeTextView = (TextView) findViewById(R.id.longitude);
-        mAccuracyTextView = (TextView) findViewById(R.id.accuracy);
-        mAltitudeTextView = (TextView) findViewById(R.id.altitude);
-
+//        requestLocationPermissions();
+//        requestGPSPermissions();
+//        getLocationUpdates();
+        mapsInit();
+        mResourceManager = IAResourceManager.create(this);
     }
 
-    private void addGeofences() {
-        mGeofenceList.add( new Geofence.Builder()
-                .setRequestId(GEOFENCE_REQ_ID)
-                .setCircularRegion(INCUBATOR_LATITUDE,
-                        INCUBATOR_LONGITUDE,
-                        INCUBATOR_GEOFENCE_RADIUS_IN_METERS)
-                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER |
-                        Geofence.GEOFENCE_TRANSITION_EXIT)
-                .setExpirationDuration(10000)
-                .build());
-    }
-
-    private void geoFencingInit() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        Log.d(TAG, "geofence init");
-        mGeofencingClient.addGeofences(getGeofencingRequest(), getGeofencePendingIntent())
-                .addOnSuccessListener(this, new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void aVoid) {
-//                        Geofences added
-                        Log.d(TAG, "Added GeoFence Successful");
-                    }
-                })
-                .addOnFailureListener(this, new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-//                        failure to add geofences
-                        Log.d(TAG, "Geofence failure");
-                    }
-                });
-    }
-
-
-    private GeofencingRequest getGeofencingRequest() {
-
-        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER);
-        builder.addGeofences(mGeofenceList);
-        return builder.build();
-
-    }
-
-    private PendingIntent getGeofencePendingIntent() {
-        if (mGeofencePendingIntent != null) {
-            return mGeofencePendingIntent;
-        }
-
-        Intent intent = new Intent(this, GeofenceTransitionsIntentService.class);
-        // We use FLAG_UPDATE_CURRENT so that we get the same pending intent back when
-        // calling addGeofences() and removeGeofences().
-        mGeofencePendingIntent = PendingIntent.getService(this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
-        return mGeofencePendingIntent;
+    private void mapsInit() {
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
     }
 
     private void requestGPSPermissions() {
@@ -272,13 +227,6 @@ public class RegionsActivity extends AppCompatActivity {
                     return;
                 Log.d(TAG, "size " + locationResult.getLocations().size() + "");
                 for (Location location : locationResult.getLocations()) {
-                    String latitude = mLatitudeTextView.getText().toString();
-                    mLatitudeTextView.setText(latitude + " " + location.getLatitude());
-                    String longitude = mLongitudeTextView.getText().toString();
-                    mLongitudeTextView.setText(longitude + " " + location.getLongitude());
-                    mAccuracyTextView.setText(location.getAccuracy() + "");
-                    mAltitudeTextView.setText(location.getAltitude() + "");
-
 
                 }
             }
@@ -289,7 +237,7 @@ public class RegionsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        startLocationUpdates();
+
 
     }
 
@@ -311,10 +259,149 @@ public class RegionsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        stopLocationUpdates();
+//        stopLocationUpdates();
     }
 
     private void stopLocationUpdates() {
         mFusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
+    }
+
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        mMap = googleMap;
+
+
+
+
+         fetchFloorPlan(newId);
+    }
+
+    /**
+     * Sets bitmap of floor plan as ground overlay on Google Maps
+     */
+    private void setupGroundOverlay(IAFloorPlan floorPlan, Bitmap bitmap) {
+
+        if (mGroundOverlay != null) {
+            mGroundOverlay.remove();
+        }
+
+        if (mMap != null) {
+            BitmapDescriptor bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap);
+            IALatLng iaLatLng = floorPlan.getCenter();
+            LatLng center = new LatLng(iaLatLng.latitude, iaLatLng.longitude);
+            GroundOverlayOptions fpOverlay = new GroundOverlayOptions()
+                    .image(bitmapDescriptor)
+                    .zIndex(0.0f)
+                    .position(center, floorPlan.getWidthMeters(), floorPlan.getHeightMeters())
+                    .bearing(floorPlan.getBearing());
+
+            mGroundOverlay = mMap.addGroundOverlay(fpOverlay);
+            LatLng incubator = new LatLng(34.071714, 72.645690);
+//            mMap.animateCamera(CameraUpdateFactory.zoomTo(22), 2000, null);
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(incubator, 25));
+        }
+    }
+
+    /**
+     * Download floor plan using Picasso library.
+     */
+    private void fetchFloorPlanBitmap(final IAFloorPlan floorPlan) {
+
+        final String url = floorPlan.getUrl();
+
+        if (mLoadTarget == null) {
+            mLoadTarget = new Target() {
+
+                @Override
+                public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
+                    Log.d(TAG, "onBitmap loaded with dimensions: " + bitmap.getWidth() + "x"
+                            + bitmap.getHeight());
+                    setupGroundOverlay(floorPlan, bitmap);
+                }
+
+                @Override
+                public void onPrepareLoad(Drawable placeHolderDrawable) {
+                    // N/A
+                }
+
+                @Override
+                public void onBitmapFailed(Exception e, Drawable placeHolderDraweble) {
+                    showInfo("Failed to load bitmap");
+                    mOverlayFloorPlan = null;
+                }
+            };
+        }
+
+        RequestCreator request = Picasso.get().load(url);
+
+        final int bitmapWidth = floorPlan.getBitmapWidth();
+        final int bitmapHeight = floorPlan.getBitmapHeight();
+
+        if (bitmapHeight > MAX_DIMENSION) {
+            request.resize(0, MAX_DIMENSION);
+        } else if (bitmapWidth > MAX_DIMENSION) {
+            request.resize(MAX_DIMENSION, 0);
+        }
+
+        request.into(mLoadTarget);
+    }
+
+
+    /**
+     * Fetches floor plan data from IndoorAtlas server.
+     */
+    private void fetchFloorPlan(String id) {
+
+        // if there is already running task, cancel it
+        cancelPendingNetworkCalls();
+
+        final IATask<IAFloorPlan> task = mResourceManager.fetchFloorPlanWithId(id);
+
+        task.setCallback(new IAResultCallback<IAFloorPlan>() {
+
+            @Override
+            public void onResult(IAResult<IAFloorPlan> result) {
+
+                if (result.isSuccess() && result.getResult() != null) {
+                    // retrieve bitmap for this floor plan metadata
+                    Log.d(TAG, "Successfully found floor");
+
+                    fetchFloorPlanBitmap(result.getResult());
+                } else {
+                    // ignore errors if this task was already canceled
+                    if (!task.isCancelled()) {
+                        // do something with error
+                        Log.d(TAG, result.getResult() + "");
+                        showInfo("Loading floor plan failed: " + result.getError());
+                        mOverlayFloorPlan = null;
+                    }
+                }
+            }
+        }, Looper.getMainLooper()); // deliver callbacks using main looper
+
+        // keep reference to task so that it can be canceled if needed
+        mFetchFloorPlanTask = task;
+
+    }
+
+    /**
+     * Helper method to cancel current task if any.
+     */
+    private void cancelPendingNetworkCalls() {
+        if (mFetchFloorPlanTask != null && !mFetchFloorPlanTask.isCancelled()) {
+            mFetchFloorPlanTask.cancel();
+        }
+    }
+
+    private void showInfo(String text) {
+        final Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), text,
+                Snackbar.LENGTH_INDEFINITE);
+        snackbar.setAction(R.string.button_close, new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                snackbar.dismiss();
+            }
+        });
+        snackbar.show();
     }
 }
