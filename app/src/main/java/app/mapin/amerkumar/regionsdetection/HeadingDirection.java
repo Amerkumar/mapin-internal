@@ -17,11 +17,9 @@ public class HeadingDirection {
         }
     }
 
-    public static float getHeadingInDegrees() {
+    public static double getHeadingInDegrees() {
         double azimuth = mOrientationAngles[0];
-//        convert range from pi to -pi to 2pi
-        azimuth = azimuth + Math.PI;
-//        now convert azimuth in degrees
-        return 0;
+
+        return Math.toDegrees(azimuth);
     }
 }

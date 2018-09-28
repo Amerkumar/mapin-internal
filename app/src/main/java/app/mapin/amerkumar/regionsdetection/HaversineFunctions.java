@@ -1,7 +1,12 @@
 package app.mapin.amerkumar.regionsdetection;
 
+import android.util.Log;
+
+import static android.support.constraint.Constraints.TAG;
+
 public class HaversineFunctions {
 
+    private static final String TAG = HaversineFunctions.class.getSimpleName();
 //
 //    Formula:	φ2 = asin( sin φ1 ⋅ cos δ + cos φ1 ⋅ sin δ ⋅ cos θ )
 //    λ2 = λ1 + atan2( sin θ ⋅ sin δ ⋅ cos φ1, cos δ − sin φ1 ⋅ sin φ2 )
@@ -19,15 +24,32 @@ public class HaversineFunctions {
 //    Output : New LatLng
     public static LatLngLocation latLngBearingToFinalLatLng(LatLngLocation latLngLocation) {
 
-        LatLngLocation result = new LatLngLocation();
-        result.setLatitude(Math.asin(Math.sin(latLngLocation.getLatitude() * Math.cos(latLngLocation.getDistance() / LatLngLocation.getEarthRadius())))
-                        + Math.cos(latLngLocation.getLatitude()) * Math.sin(latLngLocation.getDistance() / LatLngLocation.getEarthRadius()) * Math.cos(latLngLocation.getBearing()));
-        result.setLongitude(latLngLocation.getLongitude() + Math.atan2(Math.sin(latLngLocation.getBearing()) * Math.sin(latLngLocation.getDistance() / LatLngLocation.getEarthRadius())
-                            * Math.cos(latLngLocation.getLatitude()), Math.cos(latLngLocation.getDistance()) - Math.sin(latLngLocation.getLatitude()) * Math.sin(result.getLatitude())));
+        double distance = latLngLocation.getDistance() / LatLngLocation.getEarthRadius();
+        double bearing = Math.toRadians(latLngLocation.getBearing());
+        double latitude = Math.toRadians(latLngLocation.getLatitude());
+        double longitude = Math.toRadians(latLngLocation.getLongitude());
 
-        result.setLongitude((result.getLongitude() + 540) % 360 - 180);
-        result.setBearing(latLngLocation.getBearing());
-        result.setDistance(0);
-        return latLngLocation;
+        LatLngLocation result = new LatLngLocation();
+
+        double sinLatitude1 = Math.sin(latitude);
+        double cosLatitude1 = Math.cos(latitude);
+        double sinDistance = Math.sin(distance);
+        double cosDistance = Math.cos(distance);
+        double sinBearing = Math.sin(bearing);
+        double cosBearing = Math.cos(bearing);
+
+        double sinLatitude2 = sinLatitude1 * cosDistance + cosLatitude1 * sinDistance * cosBearing;
+        double latitude2 = Math.asin(sinLatitude2);
+        double y = sinBearing * sinDistance * cosLatitude1;
+        double x = cosDistance - sinLatitude1 * sinLatitude2;
+
+        double longitude2 = longitude + Math.atan2(y, x);
+
+        result.setLatitude((Math.toDegrees(latitude2) + 540) % 360 - 180);
+        result.setLongitude(Math.toDegrees(longitude2));
+        Log.d(TAG, result.getLongitude() + "");
+        Log.d(TAG, result.getLatitude() + "" );
+
+        return result;
     }
 }

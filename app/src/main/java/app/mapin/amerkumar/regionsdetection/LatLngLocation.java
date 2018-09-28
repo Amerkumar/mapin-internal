@@ -8,7 +8,7 @@ public class LatLngLocation {
     private double mLongitude;
     private double mBearing;
     private double mDistance;
-    private static final double EARTH_RADIUS = 6400;
+    private static final double EARTH_RADIUS = 6371;
 
     public static double getEarthRadius() {
         return EARTH_RADIUS;

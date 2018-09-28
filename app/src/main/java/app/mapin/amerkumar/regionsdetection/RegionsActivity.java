@@ -9,6 +9,10 @@ import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -18,9 +22,15 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.CompoundButton;
+import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.ResolvableApiException;
@@ -63,7 +73,7 @@ import com.squareup.picasso.Target;
 import java.util.LinkedList;
 import java.util.List;
 
-public class RegionsActivity extends AppCompatActivity implements OnMapReadyCallback {
+public class RegionsActivity extends AppCompatActivity implements OnMapReadyCallback, SensorEventListener {
 
     private static final String TAG = "ap.mapin.RegionActivity";
     private static final int REQUEST_CHECK_SETTINGS = 0;
@@ -86,6 +96,25 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     private IATask<IAFloorPlan> mFetchFloorPlanTask;
     private String newId = "bf5292d6-d12a-44a7-b9e3-ee6de6f10ffc";
 
+    private SensorManager mSensorManager;
+    private Sensor mStepDetectorSensor;
+    private Sensor mAccelerometerSensor;
+    private Sensor mMagnetometerSensor;
+
+    //    we want step detection as soon as possible
+    private final int STEP_DETECTOR_SAMPLING_PERIOD = 0;
+    // 20,000 micro seconds = 20 milli seconds = 50 hz
+    private final int OTHER_SENSOR_SAMPLING_PERIOD = 20000;
+
+    private final float STEP_LENGTH = 0.000762f;
+    private float[] mAccelerometerData = new float[3];
+    private float[] mMagnetometerData = new float[3];
+
+
+    private Switch mSwitchInertialNavigation;
+    private boolean mIsIntialLocationGiven = false;
+    private LatLngLocation mIntialLatLng = new LatLngLocation();
+    private BlueDotClass mBlueDotClass;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,6 +131,43 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
 //        getLocationUpdates();
         mapsInit();
         mResourceManager = IAResourceManager.create(this);
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.fragment_maps, menu);
+        MenuItem item = (MenuItem) menu.findItem(R.id.switch_item);
+        item.setActionView(R.layout.switch_layout);
+        mSwitchInertialNavigation = item
+                .getActionView().findViewById(R.id.switch_inertial_nav);
+        mSwitchInertialNavigation.setChecked(false);
+        mSwitchInertialNavigation.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    if (mIsIntialLocationGiven)
+                        registerInertialNavigation();
+                    else{
+                        showInfo("Please Long Click on Map to select intial position.");
+                        buttonView.setChecked(false);
+                    }
+
+                } else {
+                    unregisterInertialNavigation();
+                }
+            }
+        });
+        return true;
+    }
+
+
+    private void toastMessage(String text) {
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
     }
 
     private void mapsInit() {
@@ -194,8 +260,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           String permissions[], int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
             case LOCATION_PERMISSIONS_REQUEST: {
                 // If request is cancelled, the result arrays are empty.
@@ -234,11 +299,24 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
 
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
+    private void registerInertialNavigation() {
+        mStepDetectorSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
+        if (mStepDetectorSensor != null) {
+            mSensorManager.registerListener(this, mStepDetectorSensor,
+                    STEP_DETECTOR_SAMPLING_PERIOD);
+        }
 
+        mAccelerometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (mAccelerometerSensor != null) {
+            mSensorManager.registerListener(this, mAccelerometerSensor,
+                    OTHER_SENSOR_SAMPLING_PERIOD);
+        }
 
+        mMagnetometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        if (mMagnetometerSensor != null) {
+            mSensorManager.registerListener(this, mMagnetometerSensor,
+                    OTHER_SENSOR_SAMPLING_PERIOD);
+        }
     }
 
     private void startLocationUpdates() {
@@ -262,6 +340,10 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
 //        stopLocationUpdates();
     }
 
+    private void unregisterInertialNavigation() {
+        mSensorManager.unregisterListener(this);
+    }
+
     private void stopLocationUpdates() {
         mFusedLocationProviderClient.removeLocationUpdates(mLocationCallback);
     }
@@ -269,11 +351,33 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-
-
-
-
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        mMap.setMyLocationEnabled(false);
+        mBlueDotClass = BlueDotClass.get(this, mMap);
          fetchFloorPlan(newId);
+         mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+             @Override
+             public void onMapLongClick(LatLng latLng) {
+                 if (mIsIntialLocationGiven) {
+                    toastMessage("Intial Location Already Given");
+                 }
+                 else {
+                     mIntialLatLng.setLatitude(latLng.latitude);
+                     mIntialLatLng.setLongitude(latLng.longitude);
+                     mBlueDotClass.showBlueDot(latLng, 0, 0);
+                     mIsIntialLocationGiven = true;
+                 }
+             }
+         });
     }
 
     /**
@@ -297,8 +401,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
 
             mGroundOverlay = mMap.addGroundOverlay(fpOverlay);
             LatLng incubator = new LatLng(34.071714, 72.645690);
-//            mMap.animateCamera(CameraUpdateFactory.zoomTo(22), 2000, null);
-            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(incubator, 25));
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(incubator, 20), 2000, null);
         }
     }
 
@@ -403,5 +506,42 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
             }
         });
         snackbar.show();
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        int sensorType = event.sensor.getType();
+
+        switch (sensorType) {
+            case Sensor.TYPE_STEP_DETECTOR:
+                stepModel();
+                break;
+            case Sensor.TYPE_ACCELEROMETER:
+                mAccelerometerData = event.values.clone();
+                break;
+            case Sensor.TYPE_MAGNETIC_FIELD:
+                mMagnetometerData = event.values.clone();
+                break;
+        }
+        HeadingDirection.updateOrientationAngles(mAccelerometerData, mMagnetometerData);
+    }
+
+    private void stepModel() {
+        int offset = 0;
+        double heading = HeadingDirection.getHeadingInDegrees();
+        LatLngLocation latLngLocation = new LatLngLocation();
+        latLngLocation.setLatitude(mIntialLatLng.getLatitude());
+        latLngLocation.setLongitude(mIntialLatLng.getLongitude());
+        latLngLocation.setBearing(heading - offset);
+        Log.d(TAG, heading + "");
+        latLngLocation.setDistance(STEP_LENGTH);
+        mIntialLatLng = HaversineFunctions.latLngBearingToFinalLatLng(latLngLocation);
+        LatLng center = new LatLng(mIntialLatLng.getLatitude(), mIntialLatLng.getLongitude());
+        mBlueDotClass.showBlueDot(center, 1,  heading - offset);
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
     }
 }
