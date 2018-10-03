@@ -1,4 +1,4 @@
-package app.mapin.amerkumar.regionsdetection;
+package app.mapin.amerkumar.mapininternal;
 
 import android.hardware.SensorManager;
 

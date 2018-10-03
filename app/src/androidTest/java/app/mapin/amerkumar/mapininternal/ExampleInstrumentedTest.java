@@ -1,4 +1,4 @@
-package app.mapin.amerkumar.regionsdetection;
+package app.mapin.amerkumar.mapininternal;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;
@@ -21,6 +21,6 @@ public class ExampleInstrumentedTest {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getTargetContext();
 
-        assertEquals("app.mapin.amerkumar.regionsdetection", appContext.getPackageName());
+        assertEquals("app.mapin.amerkumar.mapininternal", appContext.getPackageName());
     }
 }

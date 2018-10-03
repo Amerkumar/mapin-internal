@@ -1,8 +1,6 @@
-package app.mapin.amerkumar.regionsdetection;
+package app.mapin.amerkumar.mapininternal;
 
 import android.util.Log;
-
-import static android.support.constraint.Constraints.TAG;
 
 public class HaversineFunctions {
 

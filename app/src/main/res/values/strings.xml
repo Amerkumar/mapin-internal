@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Regions Detection</string>
+    <string name="app_name">MapIn Internal</string>
     <string name="dialog_message">We use location to identify the nearby indoor building.</string>
     <string name="dialog_title">Location Permission</string>
     <string name="ok">Ok</string>
@@ -8,4 +8,5 @@
 
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="remove">Remove</string>
 </resources>

@@ -30,6 +30,19 @@
         tools:context=".RegionsActivity"
         android:name="com.google.android.gms.maps.SupportMapFragment" />
 
+
+    <ImageButton
+        android:id="@+id/add_waypoint"
+        android:layout_width="@dimen/circular_button_size"
+        android:layout_height="@dimen/circular_button_size"
+        android:layout_marginRight="16dp"
+        android:layout_marginBottom="16dp"
+        android:src="@drawable/ic_add_location_black_24dp"
+        android:background="@drawable/circle_shape"
+        android:elevation="4dp"
+        app:layout_anchor="@id/map"
+        app:layout_anchorGravity="bottom|center"
+        />
 </android.support.design.widget.CoordinatorLayout>
 
 

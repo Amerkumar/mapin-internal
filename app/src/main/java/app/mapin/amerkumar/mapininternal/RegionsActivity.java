@@ -1,10 +1,7 @@
-package app.mapin.amerkumar.regionsdetection;
+package app.mapin.amerkumar.mapininternal;
 
 import android.Manifest;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -29,16 +26,13 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.CompoundButton;
+import android.widget.ImageButton;
 import android.widget.Switch;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.Geofence;
-import com.google.android.gms.location.GeofencingClient;
-import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
@@ -55,10 +49,9 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.GroundOverlay;
 import com.google.android.gms.maps.model.GroundOverlayOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.indooratlas.android.sdk.IARegion;
 import com.indooratlas.android.sdk.resources.IAFloorPlan;
@@ -71,10 +64,14 @@ import com.squareup.picasso.Picasso;
 import com.squareup.picasso.RequestCreator;
 import com.squareup.picasso.Target;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
-public class RegionsActivity extends AppCompatActivity implements OnMapReadyCallback, SensorEventListener {
+public class RegionsActivity extends AppCompatActivity implements OnMapReadyCallback,
+        SensorEventListener,
+        GoogleMap.OnMarkerClickListener,
+        GoogleMap.OnMarkerDragListener
+{
 
     private static final String TAG = "ap.mapin.RegionActivity";
     private static final int REQUEST_CHECK_SETTINGS = 0;
@@ -114,6 +111,8 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     private float[] mRotationMatrix = new float[16];
     private float[] mOrientation = new float[9];
     private Location mGPSLocation;
+    private LatLng mCenter;
+    private Snackbar mWaypointSnackbar;
 
 
     private Switch mSwitchInertialNavigation;
@@ -121,6 +120,8 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     private LatLngLocation mIntialLatLng = new LatLngLocation();
     private BlueDotClass mBlueDotClass;
     private GeomagneticField mGeomagneticField;
+    private ImageButton mAddWaypoint;
+    private List<WaypointMarkers> mWayPointList = new ArrayList<>();
 
 
 
@@ -153,6 +154,26 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
         setSupportActionBar(toolbar);
 
 
+
+    }
+
+    private void initWayPointMarkers() {
+        mAddWaypoint = (ImageButton) findViewById(R.id.add_waypoint);
+        final Bitmap bitmap = WaypointMarkers.getBitmapFromVectorDrawable(this, R.drawable.waypoint_shape);
+        mAddWaypoint.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Marker marker = mMap.addMarker(new MarkerOptions()
+                                    .position(mCenter)
+                                    .draggable(true)
+                                    .icon(BitmapDescriptorFactory.fromBitmap(bitmap))
+                                    .flat(true));
+
+                mWayPointList.add(new WaypointMarkers(marker.getId(), marker));
+            }
+        });
+        mMap.setOnMarkerClickListener(this);
+        mMap.setOnMarkerDragListener(this);
     }
 
     @Override
@@ -394,20 +415,27 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
         mMap.setMyLocationEnabled(false);
         mBlueDotClass = BlueDotClass.get(this, mMap);
         fetchFloorPlan(newId);
-        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
-             @Override
-             public void onMapLongClick(LatLng latLng) {
-                 if (mIsIntialLocationGiven) {
-                    toastMessage("Intial Location Already Given");
-                 }
-                 else {
-                     mIntialLatLng.setLatitude(latLng.latitude);
-                     mIntialLatLng.setLongitude(latLng.longitude);
-                     mBlueDotClass.showBlueDot(latLng, 0, 0);
-                     mIsIntialLocationGiven = true;
-                 }
-             }
-         });
+//        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+//             @Override
+//             public void onMapLongClick(LatLng latLng) {
+//                 if (mIsIntialLocationGiven) {
+//                    toastMessage("Intial Location Already Given");
+//                 }
+//                 else {
+//                     mIntialLatLng.setLatitude(latLng.latitude);
+//                     mIntialLatLng.setLongitude(latLng.longitude);
+//                     mBlueDotClass.showBlueDot(latLng, 0, 0);
+//                     mIsIntialLocationGiven = true;
+//                 }
+//             }
+//         });
+        initWayPointMarkers();
+        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+            @Override
+            public void onMapClick(LatLng latLng) {
+                mWaypointSnackbar.dismiss();
+            }
+        });
     }
 
     /**
@@ -423,6 +451,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
             BitmapDescriptor bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap);
             IALatLng iaLatLng = floorPlan.getCenter();
             LatLng center = new LatLng(iaLatLng.latitude, iaLatLng.longitude);
+            mCenter = center;
             GroundOverlayOptions fpOverlay = new GroundOverlayOptions()
                     .image(bitmapDescriptor)
                     .zIndex(0.0f)
@@ -565,6 +594,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
                 float heading = HeadingDirection.mod(computeTrueNorth(magneticHeading), 360.0f)
                         - ARM_DISPLACEMENT_DEGREES;
                 HeadingDirection.setHeadingInDegrees(heading);
+//                updateGeomagneticField();
                 break;
         }
 //        HeadingDirection.updateOrientationAngles(mAccelerometerData, mMagnetometerData);
@@ -613,4 +643,41 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
                 mGPSLocation.getTime());
     }
 
+    @Override
+    public boolean onMarkerClick(final Marker marker) {
+
+        mIntialLatLng.setLatitude(marker.getPosition().latitude);
+        mIntialLatLng.setLongitude(marker.getPosition().longitude);
+        mBlueDotClass.showBlueDot(marker.getPosition(), 0, 0);
+        mIsIntialLocationGiven = true;
+        return mIsIntialLocationGiven;
+    }
+
+    @Override
+    public void onMarkerDragStart(final Marker marker) {
+        mWaypointSnackbar = Snackbar.make(findViewById(android.R.id.content), "Remove marker",
+                Snackbar.LENGTH_INDEFINITE);
+        mWaypointSnackbar.setAction(R.string.remove, new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                marker.remove();
+            }
+        });
+        mWaypointSnackbar.show();
+    }
+
+    @Override
+    public void onMarkerDrag(Marker marker) {
+
+    }
+
+    @Override
+    public void onMarkerDragEnd(Marker marker) {
+        for (WaypointMarkers waypointMarkers : mWayPointList) {
+            if (waypointMarkers.getMarker().equals(marker)) {
+                Log.d(TAG, "updated marker position");
+                waypointMarkers.setMarker(marker);
+            }
+        }
+    }
 }
