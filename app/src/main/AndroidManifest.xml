@@ -24,10 +24,10 @@
             android:value="AIzaSyCbSZhslPDozn5S2ShBHHqolm8AB41QEFQ"/>
         <meta-data
             android:name="com.indooratlas.android.sdk.API_KEY"
-            android:value="eb1dec10-794a-49eb-bda5-7c51ac1d3165"/>
+            android:value="04bad020-18b8-445e-afbf-9a2c0c52da21"/>
         <meta-data
             android:name="com.indooratlas.android.sdk.API_SECRET"
-            android:value="4oZ6ApMwG0UPozc7E4CKaxSYmtZoIQ+rZ9wMv1iUKAG3+YwMWx4n6yxG7KSFoRFG6M1pOzezq8xE0s/rdSpM/Lqd0RN/jSnkKi9dI/Sg/J3jFrRedlHl1CcZqpa3sg=="/>
+            android:value="K77rMOhpq9qI0Bw4B8uWXZzMQWcFSn56VLLntp9Mve2vv4DNGg9ypVN+DyukY8rDARdmkAKO+kalzkC+3hykgZUuWcM8MPRT6kcnBXeTfE9AHgCf5ql9jjaJUoFpIQ=="/>
     </application>
 
 </manifest>

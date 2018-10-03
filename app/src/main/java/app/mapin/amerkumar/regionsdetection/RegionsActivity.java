@@ -9,6 +9,7 @@ import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
+import android.hardware.GeomagneticField;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -100,6 +101,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     private Sensor mStepDetectorSensor;
     private Sensor mAccelerometerSensor;
     private Sensor mMagnetometerSensor;
+    private Sensor mRotationVectorSensor;
 
     //    we want step detection as soon as possible
     private final int STEP_DETECTOR_SAMPLING_PERIOD = 0;
@@ -109,12 +111,27 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     private final float STEP_LENGTH = 0.000762f;
     private float[] mAccelerometerData = new float[3];
     private float[] mMagnetometerData = new float[3];
+    private float[] mRotationMatrix = new float[16];
+    private float[] mOrientation = new float[9];
+    private Location mGPSLocation;
 
 
     private Switch mSwitchInertialNavigation;
     private boolean mIsIntialLocationGiven = false;
     private LatLngLocation mIntialLatLng = new LatLngLocation();
     private BlueDotClass mBlueDotClass;
+    private GeomagneticField mGeomagneticField;
+
+
+
+    /**
+     * The sensors used by the compass are mounted in the movable arm on Glass. Depending on how
+     * this arm is rotated, it may produce a displacement ranging anywhere from 0 to about 12
+     * degrees. Since there is no way to know exactly how far the arm is rotated, we just split the
+     * difference.
+     */
+    private static final int ARM_DISPLACEMENT_DEGREES = 6;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -124,11 +141,11 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
         // prevent the screen going to sleep while app is on foreground
         findViewById(android.R.id.content).setKeepScreenOn(true);
 
-//        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
 
-//        requestLocationPermissions();
-//        requestGPSPermissions();
-//        getLocationUpdates();
+        requestLocationPermissions();
+        requestGPSPermissions();
+        getLocationUpdates();
         mapsInit();
         mResourceManager = IAResourceManager.create(this);
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -136,6 +153,12 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
         setSupportActionBar(toolbar);
 
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+//        fetchFloorPlan(newId);
     }
 
     @Override
@@ -171,10 +194,13 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     }
 
     private void mapsInit() {
+        Log.d(TAG, "Maps init");
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
+
+
 
     private void requestGPSPermissions() {
 
@@ -223,8 +249,8 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
 
     private LocationRequest createLocationRequest() {
         LocationRequest mLocationRequest = new LocationRequest();
-        mLocationRequest.setInterval(5000);
-        mLocationRequest.setFastestInterval(5000);
+        mLocationRequest.setInterval(30000);
+        mLocationRequest.setFastestInterval(30000);
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         return mLocationRequest;
     }
@@ -291,9 +317,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
                 if (locationResult == null)
                     return;
                 Log.d(TAG, "size " + locationResult.getLocations().size() + "");
-                for (Location location : locationResult.getLocations()) {
-
-                }
+                mGPSLocation = locationResult.getLocations().get(0);
             }
         };
 
@@ -305,18 +329,24 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
             mSensorManager.registerListener(this, mStepDetectorSensor,
                     STEP_DETECTOR_SAMPLING_PERIOD);
         }
-
-        mAccelerometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        if (mAccelerometerSensor != null) {
-            mSensorManager.registerListener(this, mAccelerometerSensor,
+//
+//        mAccelerometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+//        if (mAccelerometerSensor != null) {
+//            mSensorManager.registerListener(this, mAccelerometerSensor,
+//                    OTHER_SENSOR_SAMPLING_PERIOD);
+//        }
+//
+//        mMagnetometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+//        if (mMagnetometerSensor != null) {
+//            mSensorManager.registerListener(this, mMagnetometerSensor,
+//                    OTHER_SENSOR_SAMPLING_PERIOD);
+//        }
+        mRotationVectorSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        if (mRotationVectorSensor != null) {
+            mSensorManager.registerListener(this, mRotationVectorSensor,
                     OTHER_SENSOR_SAMPLING_PERIOD);
         }
 
-        mMagnetometerSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-        if (mMagnetometerSensor != null) {
-            mSensorManager.registerListener(this, mMagnetometerSensor,
-                    OTHER_SENSOR_SAMPLING_PERIOD);
-        }
     }
 
     private void startLocationUpdates() {
@@ -350,6 +380,7 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
+        Log.d(TAG, "On Map ready callback");
         mMap = googleMap;
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
@@ -359,12 +390,11 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
             //                                          int[] grantResults)
             // to handle the case where the user grants the permission. See the documentation
             // for ActivityCompat#requestPermissions for more details.
-            return;
         }
         mMap.setMyLocationEnabled(false);
         mBlueDotClass = BlueDotClass.get(this, mMap);
-         fetchFloorPlan(newId);
-         mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+        fetchFloorPlan(newId);
+        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
              @Override
              public void onMapLongClick(LatLng latLng) {
                  if (mIsIntialLocationGiven) {
@@ -516,19 +546,33 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
             case Sensor.TYPE_STEP_DETECTOR:
                 stepModel();
                 break;
-            case Sensor.TYPE_ACCELEROMETER:
-                mAccelerometerData = event.values.clone();
-                break;
-            case Sensor.TYPE_MAGNETIC_FIELD:
-                mMagnetometerData = event.values.clone();
+//            case Sensor.TYPE_ACCELEROMETER:
+//                mAccelerometerData = event.values.clone();
+//                break;
+//            case Sensor.TYPE_MAGNETIC_FIELD:
+//                mMagnetometerData = event.values.clone();
+//                break;
+            case Sensor.TYPE_ROTATION_VECTOR:
+                // Get the current heading from the sensor, then notify the listeners of the
+                // change.
+                mSensorManager.getRotationMatrixFromVector(mRotationMatrix, event.values);
+                mSensorManager.remapCoordinateSystem(mRotationMatrix, SensorManager.AXIS_X,
+                        SensorManager.AXIS_Y, mRotationMatrix);
+                mSensorManager.getOrientation(mRotationMatrix, mOrientation);
+                // Convert the heading (which is relative to magnetic north) to one that is
+                // relative to true north, using the user's current location to compute this.
+                float magneticHeading = (float) Math.toDegrees(mOrientation[0]);
+                float heading = HeadingDirection.mod(computeTrueNorth(magneticHeading), 360.0f)
+                        - ARM_DISPLACEMENT_DEGREES;
+                HeadingDirection.setHeadingInDegrees(heading);
                 break;
         }
-        HeadingDirection.updateOrientationAngles(mAccelerometerData, mMagnetometerData);
+//        HeadingDirection.updateOrientationAngles(mAccelerometerData, mMagnetometerData);
     }
 
     private void stepModel() {
         int offset = 0;
-        double heading = HeadingDirection.getHeadingInDegrees();
+        double heading = HeadingDirection.getHeading();
         LatLngLocation latLngLocation = new LatLngLocation();
         latLngLocation.setLatitude(mIntialLatLng.getLatitude());
         latLngLocation.setLongitude(mIntialLatLng.getLongitude());
@@ -544,4 +588,29 @@ public class RegionsActivity extends AppCompatActivity implements OnMapReadyCall
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
 
     }
+
+    /**
+     * Use the magnetic field to compute true (geographic) north from the specified heading
+     * relative to magnetic north.
+     *
+     * @param heading the heading (in degrees) relative to magnetic north
+     * @return the heading (in degrees) relative to true north
+     */
+    private float computeTrueNorth(float heading) {
+        if (mGeomagneticField != null) {
+            return heading + mGeomagneticField.getDeclination();
+        } else {
+            return heading;
+        }
+    }
+
+    /**
+     * Updates the cached instance of the geomagnetic field after a location change.
+     */
+    private void updateGeomagneticField() {
+        mGeomagneticField = new GeomagneticField((float) mGPSLocation.getLatitude(),
+                (float) mGPSLocation.getLongitude(), (float) mGPSLocation.getAltitude(),
+                mGPSLocation.getTime());
+    }
+
 }
